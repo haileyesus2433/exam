@@ -1,4 +1,4 @@
-import { GetChannelQuery } from "./../../types.d";
+import { GetQuery } from "./../../types.d";
 import { PrismaClient } from "@prisma/client";
 import { Request, Response } from "express";
 import { ChannelSchema } from "../../utils/validations";
@@ -14,7 +14,7 @@ const prisma = new PrismaClient();
  * @throws {Error} - If an error occurs while retrieving the channels.
  */
 async function getChannels(req: Request, res: Response) {
-  const { search = "", limit = 10 } = req.body.query as GetChannelQuery;
+  const { search = "", limit = 10 } = req.body.query as GetQuery;
   const page = Math.max(1, req.body.query.page || 1);
   try {
     const skip = (page - 1) * limit;
