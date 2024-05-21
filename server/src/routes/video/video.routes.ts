@@ -15,3 +15,5 @@ router.post("/videos", addVideo);
 router.patch("/videos", updateVideo);
 
 router.delete("/videos", deleteVideo);
+
+export default router;

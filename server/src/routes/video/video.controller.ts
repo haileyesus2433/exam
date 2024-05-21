@@ -6,16 +6,23 @@ import { VideoSchema } from "../../utils/validations";
 const prisma = new PrismaClient();
 
 /**
- * Retrieves a list of all videos.
+ * Retrieves a list of videos based on the provided filters.
  *
  * @param req - The HTTP request object.
  * @param res - The HTTP response object.
- * @returns A JSON response containing the list of videos.
+ * @returns A JSON response containing the list of filtered videos.
  * @throws {Error} - If an error occurs while retrieving the videos.
  */
 async function getVideos(req: Request, res: Response) {
-  const { search = "", limit = 10 } = req.body.query as GetQuery;
-  const page = Math.max(1, req.body.query.page || 1);
+  const {
+    search = "",
+    limit = 10,
+    channel,
+    category,
+    type,
+  } = (req?.query as GetQuery) ?? {};
+
+  const page = Math.max(1, req.body?.query?.page || 1);
   try {
     const skip = (page - 1) * limit;
     const videos = await prisma.video.findMany({
@@ -24,18 +31,31 @@ async function getVideos(req: Request, res: Response) {
           contains: search,
           mode: "insensitive",
         },
+        typeId: type ? +type : undefined,
+        categoryId: category ? +category : undefined,
+        channelId: channel ? +channel : undefined,
       },
       skip,
       take: limit,
+      include: {
+        channel: true,
+        type: true,
+        category: true,
+      },
     });
+
     const totalCount = await prisma.video.count({
       where: {
         title: {
           contains: search,
           mode: "insensitive",
         },
+        typeId: type,
+        categoryId: category,
+        channelId: channel ? +channel : undefined,
       },
     });
+
     const totalPages = Math.ceil(totalCount / limit);
     return res.status(200).json({ videos, totalCount, totalPages });
   } catch (error) {

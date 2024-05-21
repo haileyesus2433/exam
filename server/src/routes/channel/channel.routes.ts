@@ -15,3 +15,5 @@ router.post("/channels", addChannel);
 router.patch("/channels", updateChannel);
 
 router.delete("/channels", deleteChannel);
+
+export default router;
