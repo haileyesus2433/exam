@@ -26,10 +26,31 @@ const CategorySchema = z.object({
   name: z.string().min(1),
 });
 
+const LoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+});
+
+const UserSchema = z.object({
+  id: z.number().int().positive().optional(),
+  role: z.string().default("user"),
+  avatar: z.string().optional().nullable(),
+  email: z.string().email(),
+  password: z.string().min(6),
+  favourites: z.array(VideoSchema).optional(),
+  watchLater: z.array(VideoSchema).optional(),
+});
 // Type definitions
 export type Video = z.infer<typeof VideoSchema>;
 export type Channel = z.infer<typeof ChannelSchema>;
 export type Type = z.infer<typeof TypeSchema>;
 export type Category = z.infer<typeof CategorySchema>;
 
-export { VideoSchema, ChannelSchema, TypeSchema, CategorySchema };
+export {
+  VideoSchema,
+  ChannelSchema,
+  TypeSchema,
+  CategorySchema,
+  LoginSchema,
+  UserSchema,
+};

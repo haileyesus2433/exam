@@ -1,7 +1,12 @@
 import jwt from "jsonwebtoken";
 const secret = process.env.SECRET || "1234554321";
 
-async function signJWT(payload: string) {
+type PayloadType = {
+  userId: number;
+  role: string;
+};
+
+async function signJWT(payload: PayloadType) {
   try {
     const signed = await jwt.sign(payload, secret);
     return signed;
@@ -13,7 +18,7 @@ async function signJWT(payload: string) {
 async function decodeJWT(signedJWT: string) {
   try {
     const decoded = await jwt.decode(signedJWT);
-    return decoded;
+    return decoded as PayloadType;
   } catch (error: any) {
     throw new Error(error.message || "Couldnt Decode JWT");
   }

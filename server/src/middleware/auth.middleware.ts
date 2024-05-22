@@ -1,111 +1,123 @@
-import Admins from "../models/admins/admins.mongo";
-import Students from "../models/students/students.mongo";
-
-import { comparePassword, hashPassword } from "../utils/bcrypt.util";
+import { NextFunction, Request as ExpressRequest, Response } from "express";
+import { PrismaClient, User } from "@prisma/client";
+import { comparePassword } from "../utils/bcrypt.util";
 import { signJWT, decodeJWT } from "../utils/jwt.util";
+import { LoginSchema } from "../utils/validations";
 
-async function login(req, res, next) {
+const prisma = new PrismaClient();
+
+interface Request extends ExpressRequest {
+  user?: User;
+}
+
+/**
+ * Handles the login process for a user.
+ *
+ * @param req - The Express request object containing the user's email and password.
+ * @param res - The Express response object to send the login result.
+ * @returns A JSON response with the authenticated user and a JWT token, or an error message.
+ */
+async function login(req: Request, res: Response) {
   try {
+    const result = await LoginSchema.safeParseAsync(req.body);
+    if (!result.success) {
+      return res.status(400).json(result.error);
+    }
     const { email, password } = req.body;
 
-    const student = await Students.findOne({ studentId: email });
-    const admin = await Admins.findOne({ email: email });
+    const user = await prisma.user.findUnique({
+      where: {
+        email,
+      },
+    });
 
-    if (!student && !admin) {
-      throw new Error("A User With That Email Or ID Does Not Exist");
+    if (!user) {
+      throw new Error("A user with that email does not exist");
     }
 
-    if (student) {
-      const isPasswordCorrect = await comparePassword(
-        password,
-        student?.password
-      );
-      if (!isPasswordCorrect) {
-        throw new Error("Incorrect Password");
-      }
-      const token = await signJWT({
-        userId: student?._id,
-        role: student?.accountType,
-      });
-      return res.status(200).json({ user: student, token });
-    }
-
-    const isPasswordCorrect = await comparePassword(password, admin?.password);
+    const isPasswordCorrect = await comparePassword(password, user.password);
     if (!isPasswordCorrect) {
       throw new Error("Incorrect Password");
     }
+
     const token = await signJWT({
-      userId: admin?._id,
-      role: "admin",
+      userId: user.id,
+      role: user.role,
     });
-    return res.status(200).json({ user: admin, token });
-  } catch (error) {
+
+    return res.status(200).json({ user, token });
+  } catch (error: any) {
     return res.status(400).json(error.message);
   }
 }
 
-async function isAuthenticated(req, res, next) {
+/**
+ * Middleware function to authenticate a request using a JWT token.
+ *
+ * This middleware function is responsible for verifying the JWT token in the
+ * `Authorization` header of the incoming request. If a valid token is found,
+ * the middleware will attach the corresponding user data to the `req.user`
+ * property, allowing subsequent middleware functions to access the user
+ * information.
+ *
+ * If no token is provided or the token is invalid, the middleware will return
+ * a 400 Bad Request response with the appropriate error message.
+ *
+ * @param {Request} req - The incoming HTTP request object.
+ * @param {Response} res - The HTTP response object.
+ * @param {NextFunction} next - The next middleware function in the stack.
+ * @returns {Promise<void>} - Resolves when the middleware has completed its
+ *   processing.
+ */
+async function isAuthenticated(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
   try {
-    const token = req.headers.authorization.split(" ")[1];
+    const token = req.headers?.authorization?.split(" ")[1];
+    if (!token) {
+      throw new Error("No Token Provided");
+    }
     const decodedData = await decodeJWT(token);
     if (decodedData) {
-      const user = decodedData;
-      const student = await Students.findOne({ _id: user.userId });
-      const admin = await Admins.findOne({ _id: user.userId });
-      if (student || admin) {
+      const userData = decodedData;
+      const user = await prisma.user.findUnique({
+        where: { id: userData.userId },
+      });
+      if (user) {
         req.user = user;
-        res.json(user);
-        // next();
+        next();
         return;
       }
     }
     throw new Error("Invalid Token");
-  } catch (error) {
+  } catch (error: any) {
     return res.status(400).json(error.message);
   }
 }
 
-async function isLoggedIn(req, res, next) {
+/**
+ * Middleware function to check if the current user has the "admin" role.
+ * If the user is an admin, the middleware will call `next()` to allow the request to proceed.
+ * If the user is not an admin, the middleware will return a 403 Forbidden response.
+ *
+ * @param {Request} req - The Express request object.
+ * @param {Response} res - The Express response object.
+ * @param {NextFunction} next - The Express next middleware function.
+ * @returns {Promise<void>} - Resolves when the middleware has completed.
+ */
+async function isAdmin(req: Request, res: Response, next: NextFunction) {
   try {
-    const { token } = req.body;
-    const decodedData = await decodeJWT(token);
-    if (decodedData) {
-      const user = decodedData;
-      const student = await Students.findOne({ _id: user.userId });
-      const admin = await Admins.findOne({ _id: user.userId });
-      if (student || admin) {
-        req.user = user;
-        return res.status(200).json({ user: student || admin });
-      }
-    }
-    return res.status(200).json({ user: null });
-  } catch (error) {
-    return res.status(400).json(error.message);
-  }
-}
-
-async function isAdmin(req, res, next) {
-  try {
-    if (req.user.role === "admin") {
+    if (req.user?.role === "admin") {
       next();
       return;
     }
     return res.status(403).json({ message: "Unauthorized" });
-  } catch (error) {
+  } catch (error: any) {
     console.log(error);
     return res.status(400).json(error.message);
   }
 }
 
-async function isAgent(req, res, next) {
-  try {
-    if (req.user.role === "agent") {
-      next();
-      return;
-    }
-    return res.status(403).json({ message: "Unauthorized" });
-  } catch (error) {
-    console.log(error);
-    return res.status(400).json(error.message);
-  }
-}
+export { login, isAuthenticated, isAdmin };
