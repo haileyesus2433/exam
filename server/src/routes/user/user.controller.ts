@@ -10,11 +10,48 @@ interface AuthenticatedRequest extends Request {
 }
 
 /**
- * Registers a new user in the system.
+ * Registers a new admin user.
+ *
+ * @param req - The HTTP request object.
+ * @param res - The HTTP response object.
+ * @returns A JSON response containing the created user object.
+ * @throws {Error} If there is an error creating the user.
+ */
+export const registerAdminUser = async (req: Request, res: Response) => {
+  try {
+    const result = await UserSchema.safeParseAsync(req.body);
+    if (!result.success) {
+      return res.status(400).json(result.error);
+    }
+
+    const { email, password, avatar } = result.data;
+    const role = "admin";
+
+    const hashedPassword = await hashPassword(password);
+
+    const createdUser = await prisma.user.create({
+      data: {
+        role,
+        email,
+        password: hashedPassword,
+        avatar,
+      },
+    });
+    res.status(201).json(createdUser);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  } finally {
+    await prisma.$disconnect();
+  }
+};
+
+/**
+ * Registers a new user with the provided email, password, and avatar.
  *
  * @param req - The Express request object containing the user data in the request body.
  * @param res - The Express response object to send the created user data.
- * @returns A JSON response with the created user data or an error if the registration fails.
+ * @returns A JSON response with the created user data, or an error response with a 400 status code if the input data is invalid.
  */
 export const registerUser = async (req: Request, res: Response) => {
   try {
@@ -22,7 +59,9 @@ export const registerUser = async (req: Request, res: Response) => {
     if (!result.success) {
       return res.status(400).json(result.error);
     }
-    const { role, email, password, avatar } = result.data;
+
+    const { email, password, avatar } = result.data;
+    const role = "user"; // Set the role to 'user'
 
     const hashedPassword = await hashPassword(password);
 
